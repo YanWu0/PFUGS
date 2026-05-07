@@ -8,28 +8,28 @@ function [trial_accept, L_accept, trial_count, Gamma_k, oracle] = ...
     trial_count = 0;
     total_inner_iters = 0;
 
+    [g_x0, grad_g_x0] = fun_eval_smooth_part_and_gradient(B, d, lambda, x_prev);
+    oracle.g_eval = oracle.g_eval + 1;
+    oracle.g_grad = oracle.g_grad + 1;
+
+    [f_x0, grad_f_x0] = fun_eval_smoothed_max_part(A, x_prev, mu);
+    oracle.f_eval = oracle.f_eval + 1;
+    oracle.f_subgrad = oracle.f_subgrad + 1;
+
     L_trial = alg.M0;
     while true
         trial_count = trial_count + 1;
 
-        [g_xlb, grad_g] = fun_eval_smooth_part_and_gradient(B, d, lambda, x_prev);
-        oracle.g_eval = oracle.g_eval + 1;
-        oracle.g_grad = oracle.g_grad + 1;
-
-        [f_xlb, grad_f] = fun_eval_smoothed_max_part(A, x_prev, mu);
-        oracle.f_eval = oracle.f_eval + 1;
-        oracle.f_subgrad = oracle.f_subgrad + 1;
-
         x_trial = fun_entropy_two_reference_prox_update( ...
-            x_prev, x_prev, grad_g + grad_f, L_trial, L_trial);
+            x_prev, x_prev, grad_g_x0 + grad_f_x0, L_trial, L_trial);
         g_xbar = fun_eval_smooth_part(B, d, lambda, x_trial);
         f_xbar = fun_eval_smoothed_max_part(A, x_trial, mu);
         oracle.g_eval = oracle.g_eval + 1;
         oracle.f_eval = oracle.f_eval + 1;
 
         diff_vec = x_trial - x_prev;
-        g_rhs = g_xlb + grad_g' * diff_vec + 0.5 * L_trial * norm(diff_vec, 1)^2;
-        f_rhs = f_xlb + grad_f' * diff_vec ...
+        g_rhs = g_x0 + grad_g_x0' * diff_vec + 0.5 * L_trial * norm(diff_vec, 1)^2;
+        f_rhs = f_x0 + grad_f_x0' * diff_vec ...
             + 0.5 * L_trial * norm(diff_vec, 1)^2 + 0.5 * alg.epsilon;
 
         if g_xbar <= g_rhs + alg.ineq_tol && f_xbar <= f_rhs + alg.ineq_tol
@@ -53,9 +53,6 @@ function [trial_accept, L_accept, trial_count, Gamma_k, oracle] = ...
     L_trial = L_first / 2;
     while true
         trial_count = trial_count + 1;
-        [g_xlb, grad_g] = fun_eval_smooth_part_and_gradient(B, d, lambda, x_prev);
-        oracle.g_eval = oracle.g_eval + 1;
-        oracle.g_grad = oracle.g_grad + 1;
 
         state = struct();
         state.x_prev = x_prev;
@@ -65,7 +62,7 @@ function [trial_accept, L_accept, trial_count, Gamma_k, oracle] = ...
         state.L_trial = L_trial;
         state.M0_trial = max(alg.M0, L_trial);
 
-        trial = fun_run_upfugs_inner_subproblem_smoothed(A, mu, grad_g, state, alg);
+        trial = fun_run_upfugs_inner_subproblem_smoothed(A, mu, grad_g_x0, state, alg);
         oracle.f_eval = oracle.f_eval + trial.f_eval_count;
         oracle.f_subgrad = oracle.f_subgrad + trial.f_subgrad_count;
         total_inner_iters = total_inner_iters + trial.T;
@@ -73,7 +70,7 @@ function [trial_accept, L_accept, trial_count, Gamma_k, oracle] = ...
         g_xbar = fun_eval_smooth_part(B, d, lambda, trial.xbar);
         oracle.g_eval = oracle.g_eval + 1;
 
-        g_rhs = g_xlb + grad_g' * (trial.xbar - x_prev) ...
+        g_rhs = g_x0 + grad_g_x0' * (trial.xbar - x_prev) ...
             + 0.5 * L_trial * norm(trial.xbar - x_prev, 1)^2;
 
         if g_xbar <= g_rhs + alg.ineq_tol

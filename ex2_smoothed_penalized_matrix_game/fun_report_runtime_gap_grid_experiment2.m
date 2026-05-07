@@ -41,7 +41,7 @@ function fig = local_build_gap_grid_figure(n_rows, n_cols, upfgs_time, upfgs_gap
     else
         fig = figure('Color', 'w', 'Visible', 'off');
     end
-    set(fig, 'Units', 'normalized', 'Position', [0.02, 0.12, 0.96, min(0.72, 0.18 * n_rows + 0.10)]);
+    set(fig, 'Units', 'normalized', 'Position', [0.01, 0.08, 0.98, min(0.86, 0.25 * n_rows + 0.10)]);
     tl = tiledlayout(fig, n_rows, n_cols, 'TileSpacing', 'compact', 'Padding', 'compact');
 
     plot_idx = 0;
@@ -62,7 +62,7 @@ function fig = local_build_gap_grid_figure(n_rows, n_cols, upfgs_time, upfgs_gap
 
             ax = nexttile(tl, plot_idx);
             ax.Toolbar.Visible = 'off';
-            semilogy(ax, upfgs_plot_time, max(upfgs_plot_gap, realmin), 'k-', 'LineWidth', 2.4);
+            semilogy(ax, upfgs_plot_time, max(upfgs_plot_gap, realmin), 'k--', 'LineWidth', 2.4);
             hold(ax, 'on');
             semilogy(ax, ags_time, max(ags_gap, realmin), 'k-', 'LineWidth', 1.1);
             if show_epsilon_line
@@ -73,20 +73,18 @@ function fig = local_build_gap_grid_figure(n_rows, n_cols, upfgs_time, upfgs_gap
 
             xlim(ax, [0, plot_runtime_sec]);
             local_set_gap_ylim(ax, upfgs_plot_gap, ags_gap, show_epsilon_line, epsilon_value);
-            if show_epsilon_line
-                local_add_epsilon_ytick(ax, epsilon_value);
-            end
+            local_set_base2_yticks(ax, show_epsilon_line, epsilon_value);
 
             ax.TickLabelInterpreter = 'latex';
-            ax.FontSize = 12;
+            ax.FontSize = 21;
             ax.FontWeight = 'bold';
-            ax.LineWidth = 1.1;
+            ax.LineWidth = 1.8;
             local_add_time_unit_xtick(ax, plot_runtime_sec);
             grid(ax, 'on');
             xlabel(ax, local_panel_label(plot_idx, res_ags, ...
                 ags_inner_guess_list(i), ags_outer_guess_list(j), M_reference, ...
                 L_reference, ags_stops_at_nref, ags_nref_time, plot_runtime_sec), ...
-                'Interpreter', 'latex', 'FontSize', 9, 'FontWeight', 'bold');
+                'Interpreter', 'latex', 'FontSize', 18, 'FontWeight', 'bold');
 
             legend_entries = {'PFUGS', 'AGS'};
             if plot_idx < n_plots
@@ -96,7 +94,7 @@ function fig = local_build_gap_grid_figure(n_rows, n_cols, upfgs_time, upfgs_gap
                     upfgs_plot_gap, ags_time, ags_gap);
             end
             legend(ax, legend_entries, 'Location', legend_location, ...
-                'Interpreter', 'latex', 'FontSize', 10);
+                'Interpreter', 'latex', 'FontSize', 14, 'FontWeight', 'bold');
         end
     end
 end
@@ -208,6 +206,10 @@ function label = local_format_relative_guess(value, reference_value, base_symbol
     ratio = value / reference_value;
     if abs(ratio - 1) <= 1e-10
         label = base_symbol;
+    elseif abs(ratio - 100) <= 1e-10
+        label = sprintf('100%s', base_symbol);
+    elseif abs(ratio - 0.01) <= 1e-10
+        label = sprintf('%s/100', base_symbol);
     elseif ratio > 1
         label = sprintf('%s%s', local_format_multiplier(ratio), base_symbol);
     else
@@ -316,25 +318,38 @@ function local_set_gap_ylim(ax, upfgs_gap, ags_gap, show_epsilon_line, epsilon_v
     ylim(ax, [y_min, y_max]);
 end
 
-function local_add_epsilon_ytick(ax, epsilon_value)
+function local_set_base2_yticks(ax, show_epsilon_line, epsilon_value)
     y_limits = ylim(ax);
-    if epsilon_value <= y_limits(1) || epsilon_value >= y_limits(2)
+    if y_limits(1) <= 0 || y_limits(2) <= 0
         return;
     end
 
-    current_ticks = yticks(ax);
+    min_exp = ceil(log2(y_limits(1)));
+    max_exp = floor(log2(y_limits(2)));
+    if min_exp > max_exp
+        return;
+    end
+
+    candidate_exps = max_exp:-1:min_exp;
+    max_tick_count = 5;
+    step_size = max(1, ceil(numel(candidate_exps) / max_tick_count));
+    tick_exps = candidate_exps(1:step_size:end);
+    tick_values = 2 .^ tick_exps;
+
     tolerance = 1e-10 * max(1, epsilon_value);
-    current_ticks = current_ticks(abs(current_ticks - epsilon_value) > tolerance);
-    log_eps = log10(epsilon_value);
-    current_ticks = current_ticks(abs(log10(current_ticks) - round(log_eps)) > 1e-10);
-    tick_values = sort([current_ticks(:); epsilon_value]);
+    if show_epsilon_line && epsilon_value > y_limits(1) && epsilon_value < y_limits(2)
+        tick_values = tick_values(abs(tick_values - epsilon_value) > tolerance);
+        tick_values = [tick_values(:); epsilon_value];
+    end
+
     tick_values = tick_values(tick_values >= y_limits(1) & tick_values <= y_limits(2));
+    tick_values = sort(tick_values);
     tick_labels = cell(size(tick_values));
     for idx = 1:numel(tick_values)
-        if abs(tick_values(idx) - epsilon_value) <= tolerance
+        if show_epsilon_line && abs(tick_values(idx) - epsilon_value) <= tolerance
             tick_labels{idx} = local_format_epsilon_label(epsilon_value);
         else
-            tick_labels{idx} = local_format_tick_label(tick_values(idx));
+            tick_labels{idx} = local_format_base2_tick_label(tick_values(idx));
         end
     end
 
@@ -352,11 +367,11 @@ function label = local_format_epsilon_label(epsilon_value)
     end
 end
 
-function label = local_format_tick_label(value)
-    exponent_value = log10(value);
+function label = local_format_base2_tick_label(value)
+    exponent_value = log2(value);
     rounded_exponent = round(exponent_value);
     if abs(exponent_value - rounded_exponent) < 1e-10
-        label = sprintf('$10^{%d}$', rounded_exponent);
+        label = sprintf('$2^{%d}$', rounded_exponent);
     else
         label = sprintf('$%.1g$', value);
     end

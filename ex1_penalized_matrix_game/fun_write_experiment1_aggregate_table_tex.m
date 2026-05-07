@@ -1,9 +1,12 @@
-function fun_write_experiment1_aggregate_table_tex(aggregate_rows, output_name)
+function fun_write_experiment1_aggregate_table_tex(aggregate_rows, output_name, run_benchmark)
 % fun_write_experiment1_aggregate_table_tex
 % Write the final Experiment 1 aggregate table as LaTeX code.
 
     if nargin < 2 || isempty(output_name)
         output_name = 'experiment1_aggregate_table.tex';
+    end
+    if nargin < 3 || isempty(run_benchmark)
+        run_benchmark = true;
     end
 
     fid = fopen(output_name, 'w');
@@ -21,16 +24,30 @@ function fun_write_experiment1_aggregate_table_tex(aggregate_rows, output_name)
     fprintf(fid, '\\small\n');
     fprintf(fid, '\\setlength{\\tabcolsep}{4pt}\n');
     fprintf(fid, '\\renewcommand{\\arraystretch}{1.1}\n');
-    fprintf(fid, '\\begin{tabular}{c c c c c c c c c}\n');
+    if run_benchmark
+        fprintf(fid, '\\begin{tabular}{c c c c c c c c c}\n');
+    else
+        fprintf(fid, '\\begin{tabular}{c c c c c}\n');
+    end
     fprintf(fid, '\\hline\n');
-    fprintf(fid, '$\\varepsilon$ & FGM time & FGM gap & FGM fsubg & FGM ggrad & PFUGS time & PFUGS gap & PFUGS fsubg & PFUGS ggrad \\\\\n');
+    if run_benchmark
+        fprintf(fid, '$\\varepsilon$ & FGM time & FGM gap & FGM fsubg & FGM ggrad & PFUGS time & PFUGS gap & PFUGS fsubg & PFUGS ggrad \\\\\n');
+    else
+        fprintf(fid, '$\\varepsilon$ & PFUGS time & PFUGS gap & PFUGS fsubg & PFUGS ggrad \\\\\n');
+    end
     fprintf(fid, '\\hline\n');
 
     for i = 1:n_rows
-        fprintf(fid, '$%s$ & %s & %s & %s & %s & %s & %s & %s & %s \\\\\n', ...
-            aggregate_rows{i, 1}, aggregate_rows{i, 2}, aggregate_rows{i, 3}, ...
-            aggregate_rows{i, 4}, aggregate_rows{i, 5}, aggregate_rows{i, 6}, ...
-            aggregate_rows{i, 7}, aggregate_rows{i, 8}, aggregate_rows{i, 9});
+        if run_benchmark
+            fprintf(fid, '$%s$ & %s & %s & %s & %s & %s & %s & %s & %s \\\\\n', ...
+                aggregate_rows{i, 1}, aggregate_rows{i, 2}, aggregate_rows{i, 3}, ...
+                aggregate_rows{i, 4}, aggregate_rows{i, 5}, aggregate_rows{i, 6}, ...
+                aggregate_rows{i, 7}, aggregate_rows{i, 8}, aggregate_rows{i, 9});
+        else
+            fprintf(fid, '$%s$ & %s & %s & %s & %s \\\\\n', ...
+                aggregate_rows{i, 1}, aggregate_rows{i, 2}, aggregate_rows{i, 3}, ...
+                aggregate_rows{i, 4}, aggregate_rows{i, 5});
+        end
     end
 
     fprintf(fid, '\\hline\n');
